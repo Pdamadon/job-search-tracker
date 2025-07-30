@@ -16,6 +16,7 @@ app = FastAPI(title="Job Search Tracker", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://job-search-tracker-enzft1x30-codesight.vercel.app",
         "https://*.vercel.app", 
         "https://vercel.app",
         "http://localhost:3000",
@@ -78,6 +79,8 @@ async def get_jobs(
 ):
     """Get all jobs with optional filtering"""
     try:
+        print(f"🔍 /api/jobs called with params: limit={limit}, status={status}, min_score={min_score}")
+        
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             query = """
                 SELECT * FROM jobs 
@@ -96,8 +99,15 @@ async def get_jobs(
             query += " ORDER BY match_score DESC, created_at DESC LIMIT %s"
             params.append(limit)
             
+            print(f"📝 Executing query: {query}")
+            print(f"🔢 With params: {params}")
+            
             cur.execute(query, params)
             jobs = cur.fetchall()
+            
+            print(f"📊 Raw database results: {len(jobs)} jobs found")
+            if jobs:
+                print(f"📋 First job raw: {dict(jobs[0])}")
             
             # Convert to list of dicts and handle JSON fields
             result = []
@@ -106,10 +116,15 @@ async def get_jobs(
                 if job_dict['contacts'] is None:
                     job_dict['contacts'] = []
                 result.append(job_dict)
+            
+            print(f"✅ Returning {len(result)} jobs to frontend")
+            if result:
+                print(f"📋 First job processed: {result[0]}")
                 
             return result
             
     except Exception as e:
+        print(f"❌ Database error in /api/jobs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.get("/api/jobs/{job_id}")

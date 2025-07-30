@@ -68,11 +68,44 @@ function App() {
       if (filters.status) params.append('status', filters.status);
       if (filters.minScore) params.append('min_score', filters.minScore);
       
-      const response = await axios.get(`${API_BASE}/api/jobs?${params}`);
-      setJobs(response.data);
+      const url = `${API_BASE}/api/jobs?${params}`;
+      console.log('📥 Fetching jobs from:', url);
+      console.log('🔍 Current filters:', filters);
+      console.log('📡 Making request with axios config:', {
+        url,
+        method: 'GET',
+        timeout: 30000
+      });
+      
+      const response = await axios.get(url, { timeout: 30000 });
+      
+      console.log('✅ Response received!');
+      console.log('📊 Full response object:', response);
+      console.log('📋 Response status:', response.status);
+      console.log('📄 Response headers:', response.headers);
+      console.log('📊 Jobs response data:', response.data);
+      console.log('📈 Number of jobs received:', response.data?.length || 'undefined');
+      console.log('📝 Type of response.data:', typeof response.data);
+      console.log('🔍 Is response.data an array?', Array.isArray(response.data));
+      
+      if (response.data && Array.isArray(response.data)) {
+        console.log('✅ Valid jobs array received, setting state...');
+        if (response.data.length > 0) {
+          console.log('📋 First job sample:', response.data[0]);
+        }
+        setJobs(response.data);
+      } else {
+        console.warn('⚠️ Invalid response format - expected array, got:', typeof response.data);
+        setJobs([]);
+      }
+      
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching jobs:', error);
+      console.error('❌ Error fetching jobs:', error);
+      console.error('📄 Error response:', error.response?.data);
+      console.error('🔢 Error status:', error.response?.status);
+      console.error('📋 Error config:', error.config);
+      setJobs([]);
       setLoading(false);
     }
   };
@@ -201,6 +234,17 @@ function App() {
 
         {/* Jobs List */}
         <div className="space-y-6">
+          {/* Debug Info */}
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+            <div className="text-sm text-yellow-700">
+              <strong>🔍 Debug Info:</strong><br/>
+              Jobs array length: {jobs.length}<br/>
+              Jobs array type: {typeof jobs}<br/>
+              Is jobs an array: {Array.isArray(jobs) ? 'Yes' : 'No'}<br/>
+              {jobs.length > 0 && `First job ID: ${jobs[0]?.id || 'undefined'}`}
+            </div>
+          </div>
+          
           {jobs.map((job) => (
             <JobCard
               key={job.id}

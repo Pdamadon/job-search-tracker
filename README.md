@@ -2,6 +2,10 @@
 
 AI-powered job search and tracking application with PostgreSQL database and React frontend.
 
+## 🚀 Quick Deploy
+
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Pdamadon/job-search-tracker&root-directory=frontend&env=REACT_APP_API_URL&envDescription=Backend%20API%20URL&envLink=https://github.com/Pdamadon/job-search-tracker#environment-variables&project-name=job-search-tracker&repository-name=job-search-tracker)
+
 ## Features
 
 - 🔍 **AI-Powered Job Matching**: Uses OpenAI to score job fit based on your profile

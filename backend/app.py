@@ -67,18 +67,47 @@ async def root():
 async def health_check():
     return {"status": "healthy", "message": "API is running", "cors_test": "success"}
 
-@app.get("/api/jobs", response_model=List[JobResponse])
+@app.get("/api/jobs")
 async def get_jobs(
     limit: int = 50,
     status: Optional[str] = None,
-    min_score: Optional[int] = None,
-    conn = Depends(get_db)
+    min_score: Optional[int] = None
 ):
     """Get all jobs with optional filtering"""
     try:
         print(f"🔍 /api/jobs called with params: limit={limit}, status={status}, min_score={min_score}")
+        print(f"🔗 DATABASE_URL configured: {bool(DATABASE_URL)}")
+        
+        if not DATABASE_URL:
+            print("❌ DATABASE_URL not configured")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Database not configured", "detail": "DATABASE_URL environment variable not set"}
+            )
+        
+        # Connect to database
+        print(f"🔌 Connecting to database...")
+        conn = psycopg2.connect(DATABASE_URL)
         
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # First, check if table exists
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'jobs'
+                );
+            """)
+            table_exists = cur.fetchone()['exists']
+            print(f"📋 Jobs table exists: {table_exists}")
+            
+            if not table_exists:
+                conn.close()
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "Database not initialized", "detail": "Jobs table does not exist. Please run /api/init-database first."}
+                )
+            
+            # Build query
             query = """
                 SELECT * FROM jobs 
                 WHERE 1=1
@@ -114,15 +143,29 @@ async def get_jobs(
                     job_dict['contacts'] = []
                 result.append(job_dict)
             
+            conn.close()
+            
             print(f"✅ Returning {len(result)} jobs to frontend")
             if result:
-                print(f"📋 First job processed: {result[0]}")
+                print(f"📋 First job processed keys: {list(result[0].keys())}")
                 
             return result
             
+    except psycopg2.Error as db_error:
+        print(f"❌ Database connection/query error: {str(db_error)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Database error", "detail": str(db_error)}
+        )
     except Exception as e:
-        print(f"❌ Database error in /api/jobs: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        print(f"❌ General error in /api/jobs: {str(e)}")
+        print(f"❌ Error type: {type(e).__name__}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error", "detail": str(e)}
+        )
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str, conn = Depends(get_db)):

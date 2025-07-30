@@ -15,9 +15,15 @@ app = FastAPI(title="Job Search Tracker", version="1.0.0")
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
+    allow_origins=[
+        "https://*.vercel.app", 
+        "https://vercel.app",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "*"  # Allow all origins for now
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

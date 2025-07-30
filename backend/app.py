@@ -294,12 +294,27 @@ async def run_job_search():
     """Trigger job search script"""
     try:
         import subprocess
+        import os
+        
+        # Get the correct path to the job search script
+        script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "job_search_agent.py")
+        
+        print(f"🔍 Looking for script at: {script_path}")
+        print(f"📁 Current working directory: {os.getcwd()}")
+        print(f"📂 Script exists: {os.path.exists(script_path)}")
+        
+        # Run the job search script
         result = subprocess.run(
-            ["python", "job_search_agent.py"],
+            ["python", script_path],
             capture_output=True,
             text=True,
-            cwd=".."
+            timeout=300  # 5 minute timeout
         )
+        
+        print(f"🏁 Script finished with return code: {result.returncode}")
+        print(f"📝 Output: {result.stdout[:500]}...")  # First 500 chars
+        if result.stderr:
+            print(f"❌ Errors: {result.stderr[:500]}...")
         
         return {
             "success": result.returncode == 0,
@@ -307,6 +322,8 @@ async def run_job_search():
             "error": result.stderr if result.returncode != 0 else None
         }
         
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=408, detail="Search timed out after 5 minutes")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error running search: {str(e)}")
 

@@ -215,7 +215,6 @@ function App() {
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-500">Powered by OpenAI + SerpAPI</div>
-              <div className="text-xs text-gray-400 mt-1">v1.1 - Debug Mode</div>
             </div>
           </div>
         </div>
@@ -235,17 +234,6 @@ function App() {
 
         {/* Jobs List */}
         <div className="space-y-6">
-          {/* Debug Info */}
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-            <div className="text-sm text-yellow-700">
-              <strong>🔍 Debug Info:</strong><br/>
-              Jobs array length: {jobs.length}<br/>
-              Jobs array type: {typeof jobs}<br/>
-              Is jobs an array: {Array.isArray(jobs) ? 'Yes' : 'No'}<br/>
-              {jobs.length > 0 && `First job ID: ${jobs[0]?.id || 'undefined'}`}
-            </div>
-          </div>
-          
           {jobs.map((job) => (
             <JobCard
               key={job.id}

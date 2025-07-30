@@ -20,6 +20,12 @@ function App() {
   const [initializingDb, setInitializingDb] = useState(false);
 
   useEffect(() => {
+    // Debug environment variables on load
+    console.log('🔧 App initialized with:');
+    console.log('📡 REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+    console.log('🔗 API_BASE:', API_BASE);
+    console.log('🌍 NODE_ENV:', process.env.NODE_ENV);
+    
     initializeApp();
   }, []);
 
@@ -98,18 +104,49 @@ function App() {
   };
 
   const runJobSearch = async () => {
+    console.log('🚀 Button clicked! Starting job search...');
+    console.log('🔗 API_BASE:', API_BASE);
+    console.log('🌍 Environment:', process.env.NODE_ENV);
+    console.log('📡 REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+    
     setSearchRunning(true);
+    
     try {
-      const response = await axios.post(`${API_BASE}/api/run-search`);
-      console.log('Search result:', response.data);
+      console.log('📤 Making API request to:', `${API_BASE}/api/run-search`);
+      
+      const response = await axios.post(`${API_BASE}/api/run-search`, {}, {
+        timeout: 120000, // 2 minute timeout
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('✅ Search completed successfully:', response.data);
+      
+      // Show success message
+      alert('🎉 Job search completed! Found new opportunities. Refreshing results...');
+      
       // Refresh jobs after search
-      setTimeout(() => {
-        fetchJobs();
-        fetchStats();
-        setSearchRunning(false);
-      }, 3000);
+      await fetchJobs();
+      await fetchStats();
+      
     } catch (error) {
-      console.error('Error running search:', error);
+      console.error('❌ Error running search:', error);
+      
+      // Detailed error logging
+      if (error.response) {
+        console.error('📄 Error response:', error.response.data);
+        console.error('🔢 Status code:', error.response.status);
+        alert(`❌ Search failed: ${error.response.data?.detail || error.response.statusText}`);
+      } else if (error.request) {
+        console.error('📡 No response received:', error.request);
+        alert('❌ No response from server. Check your internet connection.');
+      } else {
+        console.error('⚙️ Request setup error:', error.message);
+        alert(`❌ Request error: ${error.message}`);
+      }
+    } finally {
+      console.log('🏁 Search process finished, updating UI...');
       setSearchRunning(false);
     }
   };
@@ -182,12 +219,37 @@ function App() {
               Run your first AI-powered search to discover senior product management opportunities 
               tailored specifically to your MBA background and startup experience.
             </p>
-            <button
-              onClick={runJobSearch}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors"
-            >
-              🚀 Start Job Search
-            </button>
+            <div className="space-y-4">
+              <button
+                onClick={runJobSearch}
+                disabled={searchRunning}
+                className={`${
+                  searchRunning 
+                    ? 'bg-blue-300 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } text-white font-bold py-3 px-8 rounded-lg text-lg transition-colors`}
+              >
+                {searchRunning ? (
+                  <>
+                    <span className="animate-spin inline-block mr-2">⏳</span>
+                    Searching... This may take 60+ seconds
+                  </>
+                ) : (
+                  '🚀 Start Job Search'
+                )}
+              </button>
+              
+              {/* Debug test button */}
+              <button
+                onClick={() => {
+                  console.log('🧪 Test button clicked!');
+                  alert('Button click works! API_BASE: ' + API_BASE);
+                }}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded text-sm"
+              >
+                🧪 Test Button Click
+              </button>
+            </div>
           </div>
         )}
       </div>

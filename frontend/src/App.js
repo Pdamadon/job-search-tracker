@@ -215,6 +215,7 @@ function App() {
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-500">Powered by OpenAI + SerpAPI</div>
+              <div className="text-xs text-gray-400 mt-1">v1.1 - Debug Mode</div>
             </div>
           </div>
         </div>

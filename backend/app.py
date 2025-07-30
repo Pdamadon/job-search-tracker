@@ -9,6 +9,8 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import uvicorn
+from job_sync_service import get_job_sync_service
+from google_sheets_service import sheets_service
 
 app = FastAPI(title="Job Search Tracker", version="1.0.0")
 
@@ -58,6 +60,14 @@ class ContactCreate(BaseModel):
     linkedin_url: Optional[str]
     position: Optional[str]
     notes: Optional[str]
+
+class GoogleSheetsSync(BaseModel):
+    spreadsheet_url: str
+
+class GoogleSheetsResponse(BaseModel):
+    success: bool
+    message: str
+    count: Optional[int] = None
 
 @app.get("/")
 async def root():
@@ -381,6 +391,50 @@ async def run_job_search():
         raise HTTPException(status_code=408, detail="Search timed out after 5 minutes")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error running search: {str(e)}")
+
+@app.get("/api/sheets/status")
+async def get_sheets_status():
+    """Check Google Sheets API status"""
+    return {
+        "available": sheets_service.is_available(),
+        "message": "Google Sheets API is ready" if sheets_service.is_available() else "Google Sheets API not configured"
+    }
+
+@app.post("/api/sheets/sync-to-sheets", response_model=GoogleSheetsResponse)
+async def sync_jobs_to_sheets(request: GoogleSheetsSync):
+    """Sync all jobs from database to Google Sheets"""
+    try:
+        if not DATABASE_URL:
+            raise HTTPException(status_code=500, detail="Database not configured")
+        
+        sync_service = get_job_sync_service(DATABASE_URL)
+        success, message = sync_service.sync_jobs_to_sheets(request.spreadsheet_url)
+        
+        if success:
+            return GoogleSheetsResponse(success=True, message=message)
+        else:
+            raise HTTPException(status_code=400, detail=message)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
+
+@app.post("/api/sheets/import-from-sheets", response_model=GoogleSheetsResponse)
+async def import_jobs_from_sheets(request: GoogleSheetsSync):
+    """Import jobs from Google Sheets to database"""
+    try:
+        if not DATABASE_URL:
+            raise HTTPException(status_code=500, detail="Database not configured")
+        
+        sync_service = get_job_sync_service(DATABASE_URL)
+        success, message, count = sync_service.import_jobs_from_sheets(request.spreadsheet_url)
+        
+        if success:
+            return GoogleSheetsResponse(success=True, message=message, count=count)
+        else:
+            raise HTTPException(status_code=400, detail=message)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Import error: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

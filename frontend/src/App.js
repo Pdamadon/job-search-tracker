@@ -3,6 +3,7 @@ import axios from 'axios';
 import JobCard from './components/JobCard';
 import SearchControls from './components/SearchControls';
 import Dashboard from './components/Dashboard';
+import GoogleSheetsSync from './components/GoogleSheetsSync';
 import './App.css';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -184,6 +185,13 @@ function App() {
     }
   };
 
+  const handleSyncComplete = async (syncType) => {
+    console.log(`🔄 ${syncType} completed, refreshing data...`);
+    // Refresh jobs and stats after sync
+    await fetchJobs();
+    await fetchStats();
+  };
+
   if (loading || initializingDb) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-gray-50">
@@ -230,6 +238,12 @@ function App() {
           onFilterChange={handleFilterChange}
           searchRunning={searchRunning}
           stats={stats}
+        />
+
+        {/* Google Sheets Sync */}
+        <GoogleSheetsSync 
+          apiBase={API_BASE}
+          onSyncComplete={handleSyncComplete}
         />
 
         {/* Jobs List */}

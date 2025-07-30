@@ -9,8 +9,16 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import uvicorn
-from job_sync_service import get_job_sync_service
-from google_sheets_service import sheets_service
+# Optional imports for Google Sheets functionality
+try:
+    from job_sync_service import get_job_sync_service
+    from google_sheets_service import sheets_service
+    GOOGLE_SHEETS_AVAILABLE = True
+except ImportError as e:
+    print(f"Google Sheets functionality disabled: {e}")
+    GOOGLE_SHEETS_AVAILABLE = False
+    get_job_sync_service = None
+    sheets_service = None
 
 app = FastAPI(title="Job Search Tracker", version="1.0.0")
 
@@ -395,6 +403,12 @@ async def run_job_search():
 @app.get("/api/sheets/status")
 async def get_sheets_status():
     """Check Google Sheets API status"""
+    if not GOOGLE_SHEETS_AVAILABLE:
+        return {
+            "available": False,
+            "message": "Google Sheets modules not available - check deployment"
+        }
+    
     return {
         "available": sheets_service.is_available(),
         "message": "Google Sheets API is ready" if sheets_service.is_available() else "Google Sheets API not configured"
@@ -403,6 +417,9 @@ async def get_sheets_status():
 @app.post("/api/sheets/sync-to-sheets", response_model=GoogleSheetsResponse)
 async def sync_jobs_to_sheets(request: GoogleSheetsSync):
     """Sync all jobs from database to Google Sheets"""
+    if not GOOGLE_SHEETS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Google Sheets functionality not available")
+    
     try:
         if not DATABASE_URL:
             raise HTTPException(status_code=500, detail="Database not configured")
@@ -421,6 +438,9 @@ async def sync_jobs_to_sheets(request: GoogleSheetsSync):
 @app.post("/api/sheets/import-from-sheets", response_model=GoogleSheetsResponse)
 async def import_jobs_from_sheets(request: GoogleSheetsSync):
     """Import jobs from Google Sheets to database"""
+    if not GOOGLE_SHEETS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Google Sheets functionality not available")
+    
     try:
         if not DATABASE_URL:
             raise HTTPException(status_code=500, detail="Database not configured")

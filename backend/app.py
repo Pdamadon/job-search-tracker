@@ -12,18 +12,11 @@ import uvicorn
 
 app = FastAPI(title="Job Search Tracker", version="1.0.0")
 
-# CORS middleware for frontend
+# CORS middleware for frontend - Allow all origins for now
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://job-search-tracker-enzft1x30-codesight.vercel.app",
-        "https://*.vercel.app", 
-        "https://vercel.app",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "*"  # Allow all origins for now
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=False,  # Set to False when using "*"
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -68,7 +61,11 @@ class ContactCreate(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "Job Search Tracker API"}
+    return {"message": "Job Search Tracker API", "status": "online", "cors": "enabled"}
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy", "message": "API is running", "cors_test": "success"}
 
 @app.get("/api/jobs", response_model=List[JobResponse])
 async def get_jobs(

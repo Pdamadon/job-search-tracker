@@ -97,11 +97,12 @@ async def health_check():
 async def get_jobs(
     limit: int = 50,
     status: Optional[str] = None,
+    exclude_status: Optional[str] = None,
     min_score: Optional[int] = None
 ):
     """Get all jobs with optional filtering"""
     try:
-        print(f"🔍 /api/jobs called with params: limit={limit}, status={status}, min_score={min_score}")
+        print(f"🔍 /api/jobs called with params: limit={limit}, status={status}, exclude_status={exclude_status}, min_score={min_score}")
         print(f"🔗 DATABASE_URL configured: {bool(DATABASE_URL)}")
         
         if not DATABASE_URL:
@@ -143,6 +144,10 @@ async def get_jobs(
             if status:
                 query += " AND status = %s"
                 params.append(status)
+            
+            if exclude_status:
+                query += " AND status != %s"
+                params.append(exclude_status)
                 
             if min_score:
                 query += " AND match_score >= %s"

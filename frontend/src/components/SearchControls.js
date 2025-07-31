@@ -81,12 +81,13 @@ const SearchControls = ({ onRunSearch, onFilterChange, searchRunning, stats }) =
               onChange={(e) => handleFilterChange('status', e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">All Statuses</option>
+              <option value="">Active Jobs</option>
               <option value="new">New</option>
               <option value="applied">Applied</option>
               <option value="interviewing">Interviewing</option>
               <option value="offer">Offer</option>
-              <option value="rejected">Rejected</option>
+              <option value="rejected">Rejected Only</option>
+              <option value="all">All (Including Rejected)</option>
             </select>
           </div>
 

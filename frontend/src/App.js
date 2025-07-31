@@ -66,7 +66,19 @@ function App() {
   const fetchJobs = async () => {
     try {
       const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
+      
+      // Handle different status filter options
+      if (filters.status) {
+        if (filters.status === 'all') {
+          // Show all jobs including rejected - don't add any status filters
+        } else {
+          params.append('status', filters.status);
+        }
+      } else {
+        // Default: Don't show rejected jobs in the main view
+        params.append('exclude_status', 'rejected');
+      }
+      
       if (filters.minScore) params.append('min_score', filters.minScore);
       
       const url = `${API_BASE}/api/jobs?${params}`;
@@ -130,8 +142,18 @@ function App() {
         action_type: status,
         notes: notes
       });
-      fetchJobs(); // Refresh the list
-      fetchStats(); // Refresh stats
+      
+      // If status is 'rejected', immediately remove the job from display
+      if (status === 'rejected') {
+        setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
+        console.log(`🗑️ Removed job ${jobId} from display`);
+      } else {
+        // For other status updates, just refresh the list
+        await fetchJobs();
+      }
+      
+      // Always refresh stats to keep counts accurate
+      await fetchStats();
     } catch (error) {
       console.error('Error updating job status:', error);
     }

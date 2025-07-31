@@ -15,7 +15,31 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 user_profile = {
     "title_keywords": ["senior product manager", "principal product manager", "founding product manager", "director of product", "vp product", "head of product", "chief of staff", "head of operations", "general manager", "co-founder", "head of growth", "head of strategy"],
-    "locations": ["remote", "seattle", "san francisco", "new york", "austin", "denver", "boston", "los angeles"],
+    "locations": {
+        "preferred": ["remote", "seattle", "bellevue", "kirkland", "redmond", "eastside"],  # +15 bonus points
+        "acceptable": ["austin", "denver", "boston", "los angeles", "portland", "vancouver"],  # neutral
+        "avoid": ["san francisco", "new york", "nyc", "sf", "manhattan", "palo alto"]  # -10 penalty points
+    },
+    "location_priority_weights": {
+        "remote": 15,
+        "seattle": 15, 
+        "bellevue": 15,
+        "kirkland": 15,
+        "redmond": 15,
+        "eastside": 15,
+        "austin": 0,
+        "denver": 0,
+        "boston": 0,
+        "los angeles": 0,
+        "portland": 5,
+        "vancouver": 5,
+        "san francisco": -10,
+        "sf": -10,
+        "new york": -10,
+        "nyc": -10,
+        "manhattan": -10,
+        "palo alto": -10
+    },
     "industries": ["AI/ML", "generative AI", "productivity tools", "developer tools", "consumer tech", "fintech", "healthtech", "edtech", "marketplaces", "e-commerce", "creator economy", "climate tech", "web3", "cybersecurity", "data/analytics", "SaaS B2B", "mobile apps", "social platforms"],
     "experience_level": "senior",
     "background": "MBA, 8+ years experience, healthcare data, Amazon, Expert Network, startup sensibilities",
@@ -30,6 +54,43 @@ def get_db_connection():
     if DATABASE_URL:
         return psycopg2.connect(DATABASE_URL)
     return None
+
+def calculate_location_priority_score(job_location, user_profile):
+    """Calculate location priority score based on job location"""
+    if not job_location:
+        return 0
+    
+    location_lower = job_location.lower().strip()
+    location_weights = user_profile.get('location_priority_weights', {})
+    
+    # Check for exact matches first
+    for location_key, weight in location_weights.items():
+        if location_key.lower() in location_lower:
+            return weight
+    
+    # Check for common variations and keywords
+    location_keywords = {
+        'remote': ['remote', 'work from home', 'anywhere', 'distributed'],
+        'seattle': ['seattle', 'wa', 'washington'],
+        'bellevue': ['bellevue'],
+        'kirkland': ['kirkland'],
+        'redmond': ['redmond'],
+        'eastside': ['eastside', 'east side'],
+        'san francisco': ['san francisco', 'sf', 'bay area', 'silicon valley'],
+        'new york': ['new york', 'nyc', 'brooklyn', 'queens', 'bronx'],
+        'austin': ['austin', 'tx', 'texas'],
+        'denver': ['denver', 'co', 'colorado'],
+        'boston': ['boston', 'ma', 'massachusetts', 'cambridge'],
+        'los angeles': ['los angeles', 'la', 'california', 'ca'],
+        'portland': ['portland', 'or', 'oregon'],
+        'vancouver': ['vancouver', 'bc', 'british columbia']
+    }
+    
+    for base_location, keywords in location_keywords.items():
+        if any(keyword in location_lower for keyword in keywords):
+            return location_weights.get(base_location, 0)
+    
+    return 0  # No location bonus/penalty
 
 def create_job_hash(job):
     """Create unique hash for job to prevent duplicates"""
@@ -302,9 +363,23 @@ def search_all_sources():
         "head of operations \"high growth\" OR \"fast growing\" startup"
     ]
     
-    # Search Google Jobs with startup-focused queries
+    # Search Google Jobs with startup-focused queries, prioritizing preferred locations
+    preferred_locations = ["remote", "seattle", "bellevue", "kirkland", "redmond"]
+    secondary_locations = ["austin", "denver", "boston", "portland"]
+    
+    # Search preferred locations first (more thorough)
     for query in startup_tech_queries:
-        for location in ["remote", "san francisco", "new york", "seattle"]:
+        for location in preferred_locations:
+            try:
+                jobs = search_jobs_serpapi(query, location)
+                all_jobs.extend(jobs)
+                print(f"Found {len(jobs)} jobs from Google Jobs: {query} in {location}")
+            except Exception as e:
+                print(f"Error searching Google Jobs: {e}")
+    
+    # Search secondary locations with fewer queries
+    for query in startup_tech_queries[:4]:  # Limit queries for secondary locations
+        for location in secondary_locations:
             try:
                 jobs = search_jobs_serpapi(query, location)
                 all_jobs.extend(jobs)
@@ -357,6 +432,9 @@ def search_all_sources():
 
 
 def match_job_to_user(job, user_profile):
+    # Calculate location priority score
+    location_bonus = calculate_location_priority_score(job.get('location', ''), user_profile)
+    
     prompt = f"""
     You are evaluating job fit for a senior product leader with this startup-focused profile:
     
@@ -364,7 +442,10 @@ def match_job_to_user(job, user_profile):
     - Background: MBA from Tuck/Dartmouth, 8+ years experience at Amazon, healthcare data company (Datavant), and Expert Network
     - Target Roles: {', '.join(user_profile['title_keywords'][:8])}  # Limit for brevity
     - Preferred Industries: {', '.join(user_profile['industries'][:10])}
-    - Preferred Locations: {', '.join(user_profile['locations'])}
+    - LOCATION PREFERENCES:
+      * HIGHLY PREFERRED (+15 pts): Remote, Seattle, Bellevue, Kirkland, Redmond, Eastside
+      * ACCEPTABLE (neutral): Austin, Denver, Boston, LA, Portland, Vancouver  
+      * AVOID (-10 pts): San Francisco, NYC, Manhattan, Palo Alto
     - Company Stages: {', '.join(user_profile['company_stages'])}
     - Personality: High-agency, startup sensibilities, thrives in ambiguity, enjoys building from ground up, proven at scale
     - Avoids: {', '.join(user_profile['avoid'])}
@@ -372,24 +453,27 @@ def match_job_to_user(job, user_profile):
     JOB DETAILS:
     Title: {job.get('title', 'N/A')}
     Company: {job.get('company_name', 'N/A')}
-    Location: {job.get('location', 'Not specified')}
+    Location: {job.get('location', 'Not specified')} [Location Priority Score: {location_bonus:+d}]
     Source: {job.get('source', 'unknown')}
     Description: {job.get('description', 'No description available')[:500]}...
 
-    SCORING CRITERIA (0-100):
+    SCORING CRITERIA (Base 0-100):
     1. Seniority Match (25 points): Senior/Principal/Head/Director level roles preferred
     2. Industry Fit (25 points): Strong preference for AI/ML, fintech, healthtech, productivity tools, consumer tech
     3. Company Stage (25 points): Startup/scale-up preferred (seed to Series C), avoid large corporations
     4. Role Impact (25 points): Strategic role with product ownership, not execution-only
 
-    BONUS FACTORS (+10 each):
-    - Remote work option
-    - Startup/venture-backed company mentioned
-    - "Founding" or "0-to-1" opportunity
-    - AI/ML/data focus
-    - Consumer or B2B SaaS
+    BONUS FACTORS:
+    - Location fit: Already calculated as {location_bonus:+d} points
+    - Remote work option: +10 points
+    - Startup/venture-backed company: +10 points
+    - "Founding" or "0-to-1" opportunity: +10 points
+    - AI/ML/data focus: +10 points
+    - Consumer or B2B SaaS: +5 points
 
-    Provide: SCORE (0-100) and 2-3 sentences explaining the match rationale, highlighting strengths and concerns.
+    IMPORTANT: Factor the location preference heavily into your scoring. The location bonus/penalty of {location_bonus:+d} points should significantly impact the final score.
+
+    Provide: SCORE (0-100) and 2-3 sentences explaining the match rationale, highlighting location fit, role seniority, industry alignment, and any concerns.
     """
 
     try:
@@ -398,10 +482,23 @@ def match_job_to_user(job, user_profile):
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3  # Lower temperature for more consistent scoring
         )
-        return completion.choices[0].message.content.strip()
+        ai_response = completion.choices[0].message.content.strip()
+        
+        # Apply location bonus to the final score
+        import re
+        score_match = re.search(r'score:?\s*(\d+)', ai_response.lower())
+        if score_match:
+            base_score = int(score_match.group(1))
+            adjusted_score = max(0, min(100, base_score + location_bonus))  # Clamp between 0-100
+            
+            # Update the response with the adjusted score
+            ai_response = re.sub(r'score:?\s*\d+', f'Score: {adjusted_score}', ai_response, flags=re.IGNORECASE)
+            ai_response += f" [Base: {base_score}, Location Adjustment: {location_bonus:+d}]"
+        
+        return ai_response
     except Exception as e:
         print(f"Error getting AI match score: {e}")
-        return "Score: 70 - Unable to analyze job details due to API error."
+        return f"Score: 70 - Unable to analyze job details due to API error. Location bonus: {location_bonus:+d}"
 
 
 def find_team_members(company, role_keywords=["product manager", "chief of staff"]):

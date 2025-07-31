@@ -46,7 +46,35 @@ user_profile = {
     "avoid": ["traditional finance", "consulting", "big pharma", "energy", "industrials", "government", "non-profit"],
     "company_stages": ["seed", "series A", "series B", "series C", "growth stage", "pre-IPO"],
     "company_sizes": ["10-50", "50-200", "200-1000", "startup", "scale-up"],
-    "startup_focused": True
+    "startup_focused": True,
+    "target_companies": {
+        # Health & Wellness
+        "health_wellness": ["Calm", "Headspace", "BetterHelp", "Grow Therapy", "Ro", "Zocdoc", "Oura", "Levels", "Accolade", "Superpower", "Visible Health", "Equip", "Brightside", "Turquoise Health", "Xealth"],
+        
+        # Fintech & Finance  
+        "fintech": ["Remitly", "Betterment", "Stripe", "Monarch Money", "Farther", "Possible Finance"],
+        
+        # Travel & Lifestyle
+        "travel_lifestyle": ["Navan", "TripActions", "Going", "Scott's Cheap Flights", "Hopper", "The Dyrt", "Outdoorsy", "Fora", "Airbnb", "Expedia"],
+        
+        # Consumer & E-commerce
+        "consumer_ecommerce": ["Strava", "VSCO", "Cuyana", "Italic", "Preply", "Duolingo", "Cambly", "REI"],
+        
+        # Productivity & Design
+        "productivity_design": ["Descript", "Canva", "Figma", "Notion", "Bending Spoons", "Evernote", "Aha!", "Scribe", "LinkedIn"],
+        
+        # Real Estate & Housing
+        "real_estate": ["Zillow", "Knock", "Pacaso"],
+        
+        # Climate & Sustainability  
+        "climate": ["Nori", "Future"],
+        
+        # Enterprise & B2B
+        "enterprise": ["Amazon", "Microsoft", "Google", "Katalyst", "Symbl.ai", "Center"],
+        
+        # Other Consumer Tech
+        "other_consumer": ["Otto", "Tolan", "Portola", "Sketchy", "Ravenna", "Jargon"]
+    }
 }
 
 def get_db_connection():
@@ -345,6 +373,127 @@ def search_startup_jobs_general():
     
     return all_jobs[:20]  # Limit to 20 results
 
+def search_target_companies():
+    """Search for jobs at specific target companies"""
+    if not SERPAPI_KEY:
+        return []
+    
+    all_jobs = []
+    target_companies = user_profile.get('target_companies', {})
+    
+    # Flatten all company lists
+    all_target_companies = []
+    for category, companies in target_companies.items():
+        all_target_companies.extend(companies)
+    
+    # Search for each company with product management roles
+    role_queries = [
+        "senior product manager",
+        "principal product manager", 
+        "director of product",
+        "head of product",
+        "chief of staff"
+    ]
+    
+    # Group companies to avoid too many API calls
+    companies_searched = 0
+    max_companies = 30  # Limit to avoid API overuse
+    
+    for company in all_target_companies[:max_companies]:
+        if companies_searched >= max_companies:
+            break
+            
+        try:
+            # Search for jobs at this specific company
+            for role in role_queries[:2]:  # Limit roles per company
+                query = f'"{role}" site:{company.lower()}.com OR site:jobs.{company.lower()}.com OR site:careers.{company.lower()}.com'
+                
+                params = {
+                    "engine": "google",
+                    "q": query,
+                    "api_key": SERPAPI_KEY,
+                    "num": 5
+                }
+                
+                search = GoogleSearch(params)
+                results = search.get_dict()
+                organic_results = results.get("organic_results", [])
+                
+                for result in organic_results:
+                    link = result.get('link', '')
+                    if any(keyword in link.lower() for keyword in ['job', 'career', 'hiring', 'positions']):
+                        all_jobs.append({
+                            'title': result.get('title', ''),
+                            'company_name': company,
+                            'location': 'Check Company Site',
+                            'description': result.get('snippet', ''),
+                            'job_url': link,
+                            'source': 'target_company',
+                            'source_url': link
+                        })
+            
+            companies_searched += 1
+            
+        except Exception as e:
+            print(f"Error searching {company}: {e}")
+            continue
+    
+    print(f"Searched {companies_searched} target companies")
+    return all_jobs[:15]  # Limit results
+
+def search_company_careers_general():
+    """Search for jobs using general company + role queries"""
+    if not SERPAPI_KEY:
+        return []
+    
+    all_jobs = []
+    target_companies = user_profile.get('target_companies', {})
+    
+    # High-priority companies for more focused search
+    priority_companies = [
+        # Fintech
+        "Stripe", "Remitly", "Betterment", "Monarch Money",
+        # Health/Wellness  
+        "Calm", "Headspace", "Oura", "Levels", "Ro",
+        # Consumer/Productivity
+        "Strava", "Figma", "Notion", "Canva", "Duolingo",
+        # Travel
+        "Airbnb", "Navan", "Hopper",
+        # Enterprise
+        "Amazon", "Microsoft", "Google"
+    ]
+    
+    role_company_queries = [
+        '"senior product manager" (Stripe OR Figma OR Notion OR Calm OR Strava)',
+        '"head of product" (Remitly OR Betterment OR Headspace OR Oura)',
+        '"director product" (Amazon OR Microsoft OR Google OR Airbnb)',
+        '"principal product manager" (Canva OR Duolingo OR Levels OR Navan)'
+    ]
+    
+    for query in role_company_queries:
+        try:
+            params = {
+                "engine": "google_jobs",
+                "q": query,
+                "api_key": SERPAPI_KEY
+            }
+            
+            search = GoogleSearch(params)
+            results = search.get_dict()
+            jobs = results.get("jobs_results", [])
+            
+            for job in jobs:
+                job['source'] = 'target_company_general'
+                job['source_url'] = job.get('apply_options', [{}])[0].get('link', job.get('share_link', ''))
+            
+            all_jobs.extend(jobs)
+            
+        except Exception as e:
+            print(f"Error searching company query '{query}': {e}")
+            continue
+    
+    return all_jobs[:20]  # Limit results
+
 def search_all_sources():
     """Search jobs from all available sources"""
     print("🔎 Searching for senior product leadership roles...")
@@ -425,6 +574,24 @@ def search_all_sources():
     except Exception as e:
         print(f"Error searching startup jobs: {e}")
     
+    # Search target companies directly
+    try:
+        target_company_jobs = search_target_companies()
+        all_jobs.extend(target_company_jobs)
+        sources_searched.append(f"Target companies ({len(target_company_jobs)} jobs)")
+        print(f"Found {len(target_company_jobs)} jobs from target companies")
+    except Exception as e:
+        print(f"Error searching target companies: {e}")
+    
+    # Search target companies with general queries
+    try:
+        company_general_jobs = search_company_careers_general()
+        all_jobs.extend(company_general_jobs)
+        sources_searched.append(f"Target company queries ({len(company_general_jobs)} jobs)")
+        print(f"Found {len(company_general_jobs)} jobs from target company queries")
+    except Exception as e:
+        print(f"Error searching target company queries: {e}")
+    
     print(f"\n📊 Sources searched: {', '.join(sources_searched)}")
     print(f"Found {len(all_jobs)} total opportunities")
     
@@ -434,6 +601,20 @@ def search_all_sources():
 def match_job_to_user(job, user_profile):
     # Calculate location priority score
     location_bonus = calculate_location_priority_score(job.get('location', ''), user_profile)
+    
+    # Calculate target company bonus
+    target_company_bonus = 0
+    company_name = job.get('company_name', '').lower()
+    target_companies = user_profile.get('target_companies', {})
+    
+    # Check if this is one of our target companies
+    for category, companies in target_companies.items():
+        for target_company in companies:
+            if target_company.lower() in company_name or company_name in target_company.lower():
+                target_company_bonus = 10  # +10 points for target companies
+                break
+    
+    total_bonus = location_bonus + target_company_bonus
     
     prompt = f"""
     You are evaluating job fit for a senior product leader with this startup-focused profile:
@@ -446,13 +627,14 @@ def match_job_to_user(job, user_profile):
       * HIGHLY PREFERRED (+15 pts): Remote, Seattle, Bellevue, Kirkland, Redmond, Eastside
       * ACCEPTABLE (neutral): Austin, Denver, Boston, LA, Portland, Vancouver  
       * AVOID (-10 pts): San Francisco, NYC, Manhattan, Palo Alto
+    - TARGET COMPANIES (+10 pts): Stripe, Figma, Notion, Calm, Strava, Headspace, Oura, Remitly, Betterment, Canva, Duolingo, Airbnb, Amazon, Microsoft, Google, and ~40 other consumer/fintech/healthtech companies
     - Company Stages: {', '.join(user_profile['company_stages'])}
     - Personality: High-agency, startup sensibilities, thrives in ambiguity, enjoys building from ground up, proven at scale
     - Avoids: {', '.join(user_profile['avoid'])}
 
     JOB DETAILS:
     Title: {job.get('title', 'N/A')}
-    Company: {job.get('company_name', 'N/A')}
+    Company: {job.get('company_name', 'N/A')} [Target Company Bonus: {target_company_bonus:+d}]
     Location: {job.get('location', 'Not specified')} [Location Priority Score: {location_bonus:+d}]
     Source: {job.get('source', 'unknown')}
     Description: {job.get('description', 'No description available')[:500]}...
@@ -464,6 +646,7 @@ def match_job_to_user(job, user_profile):
     4. Role Impact (25 points): Strategic role with product ownership, not execution-only
 
     BONUS FACTORS:
+    - Target company fit: Already calculated as {target_company_bonus:+d} points
     - Location fit: Already calculated as {location_bonus:+d} points
     - Remote work option: +10 points
     - Startup/venture-backed company: +10 points
@@ -471,9 +654,9 @@ def match_job_to_user(job, user_profile):
     - AI/ML/data focus: +10 points
     - Consumer or B2B SaaS: +5 points
 
-    IMPORTANT: Factor the location preference heavily into your scoring. The location bonus/penalty of {location_bonus:+d} points should significantly impact the final score.
+    IMPORTANT: Factor the total bonus/penalty of {total_bonus:+d} points ({location_bonus:+d} location + {target_company_bonus:+d} company) heavily into your scoring.
 
-    Provide: SCORE (0-100) and 2-3 sentences explaining the match rationale, highlighting location fit, role seniority, industry alignment, and any concerns.
+    Provide: SCORE (0-100) and 2-3 sentences explaining the match rationale, highlighting company fit, location preference, role seniority, industry alignment, and any concerns.
     """
 
     try:
@@ -489,16 +672,19 @@ def match_job_to_user(job, user_profile):
         score_match = re.search(r'score:?\s*(\d+)', ai_response.lower())
         if score_match:
             base_score = int(score_match.group(1))
-            adjusted_score = max(0, min(100, base_score + location_bonus))  # Clamp between 0-100
+            adjusted_score = max(0, min(100, base_score + total_bonus))  # Clamp between 0-100
             
             # Update the response with the adjusted score
             ai_response = re.sub(r'score:?\s*\d+', f'Score: {adjusted_score}', ai_response, flags=re.IGNORECASE)
-            ai_response += f" [Base: {base_score}, Location Adjustment: {location_bonus:+d}]"
+            if target_company_bonus > 0:
+                ai_response += f" [Base: {base_score}, Location: {location_bonus:+d}, Company: {target_company_bonus:+d}]"
+            else:
+                ai_response += f" [Base: {base_score}, Location: {location_bonus:+d}]"
         
         return ai_response
     except Exception as e:
         print(f"Error getting AI match score: {e}")
-        return f"Score: 70 - Unable to analyze job details due to API error. Location bonus: {location_bonus:+d}"
+        return f"Score: 70 - Unable to analyze job details due to API error. Bonuses: Location {location_bonus:+d}, Company {target_company_bonus:+d}"
 
 
 def find_team_members(company, role_keywords=["product manager", "chief of staff"]):

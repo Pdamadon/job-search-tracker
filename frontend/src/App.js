@@ -137,17 +137,32 @@ function App() {
   };
 
   const updateJobStatus = async (jobId, status, notes = '') => {
+    console.log(`🔄 updateJobStatus called: jobId=${jobId}, status=${status}`);
+    console.log(`📋 Current jobs count before update: ${jobs.length}`);
+    
     try {
-      await axios.put(`${API_BASE}/api/jobs/${jobId}/status`, {
+      console.log(`📤 Making API call to update job status...`);
+      const response = await axios.put(`${API_BASE}/api/jobs/${jobId}/status`, {
         action_type: status,
         notes: notes
       });
+      console.log(`✅ API call successful:`, response.data);
       
       // If status is 'rejected', immediately remove the job from display
       if (status === 'rejected') {
-        setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
-        console.log(`🗑️ Removed job ${jobId} from display`);
+        console.log(`🗑️ Status is 'rejected', removing job ${jobId} from display`);
+        console.log(`📋 Jobs before filter:`, jobs.map(j => j.id));
+        
+        setJobs(prevJobs => {
+          const newJobs = prevJobs.filter(job => job.id !== jobId);
+          console.log(`📋 Jobs after filter: ${newJobs.length} remaining`);
+          console.log(`📋 Filtered jobs:`, newJobs.map(j => j.id));
+          return newJobs;
+        });
+        
+        console.log(`🗑️ Job ${jobId} should be removed from display`);
       } else {
+        console.log(`🔄 Status is '${status}', refreshing job list instead of removing`);
         // For other status updates, just refresh the list
         await fetchJobs();
       }
@@ -155,7 +170,8 @@ function App() {
       // Always refresh stats to keep counts accurate
       await fetchStats();
     } catch (error) {
-      console.error('Error updating job status:', error);
+      console.error('❌ Error updating job status:', error);
+      console.error('📄 Error details:', error.response?.data);
     }
   };
 

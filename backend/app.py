@@ -489,8 +489,18 @@ async def search_company_jobs(request: CompanySearchRequest):
         
         print(f"🏢 Starting custom company search for: {company_name}")
         
+        # Check if SERPAPI_KEY is available
+        import os
+        serpapi_key = os.getenv("SERPAPI_KEY")
+        print(f"🔑 SERPAPI_KEY available: {bool(serpapi_key)}")
+        if serpapi_key:
+            print(f"🔑 SERPAPI_KEY first 10 chars: {serpapi_key[:10]}...")
+        
         # Search for jobs at the specific company
+        print(f"🔍 About to call search_single_company({company_name})")
         jobs = search_single_company(company_name)
+        print(f"🔍 search_single_company returned: {len(jobs) if jobs else 0} jobs")
+        print(f"🔍 Jobs sample: {jobs[:2] if jobs else 'None'}")
         
         if not jobs:
             return {

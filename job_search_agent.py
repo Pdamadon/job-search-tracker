@@ -455,6 +455,12 @@ def search_company_careers_general():
 
 def search_single_company(company_name):
     """Search for product management roles at a specific company"""
+    print(f"🔑 SERPAPI_KEY in search_single_company: {bool(SERPAPI_KEY)}")
+    if SERPAPI_KEY:
+        print(f"🔑 SERPAPI_KEY first 10 chars: {SERPAPI_KEY[:10]}...")
+    else:
+        print("❌ SERPAPI_KEY is missing! Cannot perform search.")
+        
     if not SERPAPI_KEY:
         return []
     

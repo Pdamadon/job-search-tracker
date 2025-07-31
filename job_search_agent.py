@@ -14,7 +14,7 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 user_profile = {
-    "title_keywords": ["senior product manager", "principal product manager", "founding product manager", "director of product", "vp product", "head of product", "chief of staff", "head of operations", "general manager", "co-founder", "head of growth", "head of strategy"],
+    "title_keywords": ["product manager", "senior product manager", "principal product manager", "founding product manager", "director of product", "vp product", "head of product", "chief of staff", "head of operations", "general manager", "co-founder", "head of growth", "head of strategy"],
     "locations": {
         "preferred": ["remote", "seattle", "bellevue", "kirkland", "redmond", "eastside"],  # +15 bonus points
         "acceptable": ["austin", "denver", "boston", "los angeles", "portland", "vancouver"],  # neutral
@@ -383,7 +383,7 @@ def search_target_companies():
     # Single broad query per company (instead of multiple role queries)
     for company in priority_companies:
         try:
-            query = f'"product manager" OR "head of product" OR "chief of staff" site:{company.lower()}.com'
+            query = f'("product manager" OR "head of product" OR "chief of staff") site:{company.lower()}.com'
             
             params = {
                 "engine": "google",
@@ -423,9 +423,9 @@ def search_company_careers_general():
     
     all_jobs = []
     
-    # STREAMLINED: Just 2 high-impact queries
+    # STREAMLINED: Just 2 high-impact queries including plain "product manager"
     targeted_queries = [
-        '"senior product manager" OR "principal product manager" (Stripe OR Figma OR Notion OR Calm OR Strava OR Airbnb)',
+        '"product manager" OR "senior product manager" OR "principal product manager" (Stripe OR Figma OR Notion OR Calm OR Strava OR Airbnb)',
         '"head of product" OR "director product" (Amazon OR Microsoft OR Remitly OR Betterment OR Canva OR Oura)'
     ]
     
@@ -460,11 +460,11 @@ def search_all_sources():
     all_jobs = []
     sources_searched = []
     
-    # STREAMLINED: Fewer, more targeted queries
+    # STREAMLINED: Fewer, more targeted queries including plain "product manager"
     core_queries = [
         "senior product manager remote OR seattle OR bellevue",
-        "principal product manager startup OR \"series A\" OR fintech OR healthtech", 
-        "head of product \"early stage\" OR \"growth stage\" remote",
+        "product manager startup OR \"series A\" OR fintech OR healthtech OR remote", 
+        "principal product manager OR head of product \"early stage\" OR \"growth stage\" remote",
         "founding product manager OR director product startup"
     ]
     

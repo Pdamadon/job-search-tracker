@@ -11,14 +11,22 @@ from datetime import datetime
 import uvicorn
 # Optional imports for Google Sheets functionality
 try:
-    from job_sync_service import get_job_sync_service
-    from google_sheets_service import sheets_service
+    from .job_sync_service import get_job_sync_service
+    from .google_sheets_service import sheets_service
     GOOGLE_SHEETS_AVAILABLE = True
+    print("✅ Google Sheets functionality enabled")
 except ImportError as e:
-    print(f"Google Sheets functionality disabled: {e}")
-    GOOGLE_SHEETS_AVAILABLE = False
-    get_job_sync_service = None
-    sheets_service = None
+    try:
+        # Try without relative imports
+        from job_sync_service import get_job_sync_service
+        from google_sheets_service import sheets_service
+        GOOGLE_SHEETS_AVAILABLE = True
+        print("✅ Google Sheets functionality enabled")
+    except ImportError as e2:
+        print(f"⚠️  Google Sheets functionality disabled: {e2}")
+        GOOGLE_SHEETS_AVAILABLE = False
+        get_job_sync_service = None
+        sheets_service = None
 
 app = FastAPI(title="Job Search Tracker", version="1.0.0")
 

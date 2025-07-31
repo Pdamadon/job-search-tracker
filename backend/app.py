@@ -472,6 +472,43 @@ async def import_jobs_from_sheets(request: GoogleSheetsSync):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Import error: {str(e)}")
 
+@app.get("/api/test-serpapi")
+async def test_serpapi():
+    """Test if SERPAPI_KEY is working"""
+    try:
+        import os
+        from serpapi import GoogleSearch
+        
+        serpapi_key = os.getenv("SERPAPI_KEY")
+        print(f"🔑 Testing SERPAPI_KEY: {bool(serpapi_key)}")
+        
+        if not serpapi_key:
+            return {"error": "SERPAPI_KEY not found in environment"}
+        
+        # Test with a simple search
+        params = {
+            "engine": "google_jobs",
+            "q": "product manager microsoft",
+            "api_key": serpapi_key
+        }
+        
+        search = GoogleSearch(params)
+        results = search.get_dict()
+        
+        jobs_count = len(results.get("jobs_results", []))
+        print(f"🔍 Test search returned {jobs_count} jobs")
+        
+        return {
+            "serpapi_key_available": True,
+            "test_query": "product manager microsoft", 
+            "jobs_found": jobs_count,
+            "api_response_keys": list(results.keys())
+        }
+        
+    except Exception as e:
+        print(f"❌ SERPAPI test error: {str(e)}")
+        return {"error": f"SERPAPI test failed: {str(e)}"}
+
 @app.post("/api/search-company")
 async def search_company_jobs(request: CompanySearchRequest):
     """Search for product management jobs at a specific company"""

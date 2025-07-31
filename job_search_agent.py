@@ -212,15 +212,15 @@ def search_jobs_serpapi(query: str, location: str = "Remote"):
     return jobs
 
 def search_jobs_ycombinator():
-    """Search Y Combinator jobs using SerpAPI"""
+    """Search Y Combinator jobs using SerpAPI - QUICK VERSION"""
     if not SERPAPI_KEY:
         return []
     
     params = {
         "engine": "google",
-        "q": "site:ycombinator.com/jobs (senior OR principal OR head OR director) product manager",
+        "q": "site:ycombinator.com/jobs product manager",
         "api_key": SERPAPI_KEY,
-        "num": 20
+        "num": 10  # Reduced from 20
     }
 
     try:
@@ -229,7 +229,7 @@ def search_jobs_ycombinator():
         organic_results = results.get("organic_results", [])
         
         jobs = []
-        for result in organic_results:
+        for result in organic_results[:5]:  # Only check first 5
             if '/jobs/' in result.get('link', ''):
                 jobs.append({
                     'title': result.get('title', ''),
@@ -241,62 +241,55 @@ def search_jobs_ycombinator():
                     'source_url': result.get('link', '')
                 })
         
-        return jobs[:10]  # Limit to 10 results
+        return jobs  # Return all found (max 5)
     except Exception as e:
         print(f"Error searching YC jobs: {e}")
         return []
 
 def search_jobs_angellist():
-    """Search AngelList jobs using SerpAPI"""
+    """Search AngelList jobs using SerpAPI - QUICK VERSION"""
     if not SERPAPI_KEY:
         return []
     
-    startup_keywords = ["startup", "series A", "series B", "early stage", "seed funded"]
-    queries = [
-        "site:angel.co product manager startup",
-        "site:wellfound.com senior product manager",
-        "site:angel.co head of product early stage"
-    ]
+    # Single optimized query instead of 3
+    query = "site:wellfound.com OR site:angel.co product manager startup"
     
-    all_jobs = []
-    
-    for query in queries:
-        params = {
-            "engine": "google",
-            "q": query,
-            "api_key": SERPAPI_KEY,
-            "num": 15
-        }
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": SERPAPI_KEY,
+        "num": 8  # Reduced from 15
+    }
 
-        try:
-            search = GoogleSearch(params)
-            results = search.get_dict()
-            organic_results = results.get("organic_results", [])
-            
-            for result in organic_results:
-                if any(keyword in result.get('link', '') for keyword in ['/jobs/', '/job/', 'companies']):
-                    # Extract company name from title if possible
-                    title = result.get('title', '')
-                    company_name = 'Startup'
-                    if ' at ' in title:
-                        parts = title.split(' at ')
-                        if len(parts) > 1:
-                            company_name = parts[1].split(' - ')[0].strip()
-                    
-                    all_jobs.append({
-                        'title': title.split(' at ')[0] if ' at ' in title else title,
-                        'company_name': company_name,
-                        'location': 'Remote/SF/NYC',
-                        'description': result.get('snippet', ''),
-                        'job_url': result.get('link', ''),
-                        'source': 'angellist',
-                        'source_url': result.get('link', '')
-                    })
-        except Exception as e:
-            print(f"Error searching AngelList jobs with query '{query}': {e}")
-            continue
-    
-    return all_jobs[:15]  # Limit to 15 results
+    try:
+        search = GoogleSearch(params)
+        results = search.get_dict()
+        organic_results = results.get("organic_results", [])
+        
+        jobs = []
+        for result in organic_results[:6]:  # Only check first 6
+            if any(keyword in result.get('link', '') for keyword in ['/jobs/', '/job/']):
+                title = result.get('title', '')
+                company_name = 'Startup'
+                if ' at ' in title:
+                    parts = title.split(' at ')
+                    if len(parts) > 1:
+                        company_name = parts[1].split(' - ')[0].strip()
+                
+                jobs.append({
+                    'title': title.split(' at ')[0] if ' at ' in title else title,
+                    'company_name': company_name,
+                    'location': 'Remote/Various',
+                    'description': result.get('snippet', ''),
+                    'job_url': result.get('link', ''),
+                    'source': 'angellist',
+                    'source_url': result.get('link', '')
+                })
+        
+        return jobs  # Return all found (max 6)
+    except Exception as e:
+        print(f"Error searching AngelList: {e}")
+        return []
 
 def search_jobs_builtin():
     """Search Built In jobs using SerpAPI"""
@@ -374,106 +367,72 @@ def search_startup_jobs_general():
     return all_jobs[:20]  # Limit to 20 results
 
 def search_target_companies():
-    """Search for jobs at specific target companies"""
+    """Search for jobs at specific target companies - OPTIMIZED"""
     if not SERPAPI_KEY:
         return []
     
     all_jobs = []
-    target_companies = user_profile.get('target_companies', {})
     
-    # Flatten all company lists
-    all_target_companies = []
-    for category, companies in target_companies.items():
-        all_target_companies.extend(companies)
-    
-    # Search for each company with product management roles
-    role_queries = [
-        "senior product manager",
-        "principal product manager", 
-        "director of product",
-        "head of product",
-        "chief of staff"
+    # FOCUS ON TOP-TIER COMPANIES ONLY (much faster)
+    priority_companies = [
+        "Stripe", "Figma", "Notion", "Canva", "Strava", 
+        "Calm", "Headspace", "Oura", "Remitly", "Betterment",
+        "Airbnb", "Amazon", "Microsoft"  # 13 companies max
     ]
     
-    # Group companies to avoid too many API calls
-    companies_searched = 0
-    max_companies = 30  # Limit to avoid API overuse
-    
-    for company in all_target_companies[:max_companies]:
-        if companies_searched >= max_companies:
-            break
-            
+    # Single broad query per company (instead of multiple role queries)
+    for company in priority_companies:
         try:
-            # Search for jobs at this specific company
-            for role in role_queries[:2]:  # Limit roles per company
-                query = f'"{role}" site:{company.lower()}.com OR site:jobs.{company.lower()}.com OR site:careers.{company.lower()}.com'
-                
-                params = {
-                    "engine": "google",
-                    "q": query,
-                    "api_key": SERPAPI_KEY,
-                    "num": 5
-                }
-                
-                search = GoogleSearch(params)
-                results = search.get_dict()
-                organic_results = results.get("organic_results", [])
-                
-                for result in organic_results:
-                    link = result.get('link', '')
-                    if any(keyword in link.lower() for keyword in ['job', 'career', 'hiring', 'positions']):
-                        all_jobs.append({
-                            'title': result.get('title', ''),
-                            'company_name': company,
-                            'location': 'Check Company Site',
-                            'description': result.get('snippet', ''),
-                            'job_url': link,
-                            'source': 'target_company',
-                            'source_url': link
-                        })
+            query = f'"product manager" OR "head of product" OR "chief of staff" site:{company.lower()}.com'
             
-            companies_searched += 1
+            params = {
+                "engine": "google",
+                "q": query,
+                "api_key": SERPAPI_KEY,
+                "num": 3  # Reduced from 5
+            }
             
+            search = GoogleSearch(params)
+            results = search.get_dict()
+            organic_results = results.get("organic_results", [])
+            
+            for result in organic_results:
+                link = result.get('link', '')
+                if any(keyword in link.lower() for keyword in ['job', 'career', 'hiring']):
+                    all_jobs.append({
+                        'title': result.get('title', ''),
+                        'company_name': company,
+                        'location': 'See Company Site',
+                        'description': result.get('snippet', ''),
+                        'job_url': link,
+                        'source': 'target_company_direct',
+                        'source_url': link
+                    })
+                    break  # Only take first relevant result per company
+        
         except Exception as e:
             print(f"Error searching {company}: {e}")
             continue
     
-    print(f"Searched {companies_searched} target companies")
-    return all_jobs[:15]  # Limit results
+    return all_jobs[:10]  # Further limit results
 
 def search_company_careers_general():
-    """Search for jobs using general company + role queries"""
+    """Search for jobs using general company + role queries - OPTIMIZED"""
     if not SERPAPI_KEY:
         return []
     
     all_jobs = []
-    target_companies = user_profile.get('target_companies', {})
     
-    # High-priority companies for more focused search
-    priority_companies = [
-        # Fintech
-        "Stripe", "Remitly", "Betterment", "Monarch Money",
-        # Health/Wellness  
-        "Calm", "Headspace", "Oura", "Levels", "Ro",
-        # Consumer/Productivity
-        "Strava", "Figma", "Notion", "Canva", "Duolingo",
-        # Travel
-        "Airbnb", "Navan", "Hopper",
-        # Enterprise
-        "Amazon", "Microsoft", "Google"
+    # STREAMLINED: Just 2 high-impact queries
+    targeted_queries = [
+        '"senior product manager" OR "principal product manager" (Stripe OR Figma OR Notion OR Calm OR Strava OR Airbnb)',
+        '"head of product" OR "director product" (Amazon OR Microsoft OR Remitly OR Betterment OR Canva OR Oura)'
     ]
     
-    role_company_queries = [
-        '"senior product manager" (Stripe OR Figma OR Notion OR Calm OR Strava)',
-        '"head of product" (Remitly OR Betterment OR Headspace OR Oura)',
-        '"director product" (Amazon OR Microsoft OR Google OR Airbnb)',
-        '"principal product manager" (Canva OR Duolingo OR Levels OR Navan)'
-    ]
-    
-    for query in role_company_queries:
+    for query in targeted_queries:
         try:
             params = {
-                "engine": "google_jobs",
+                "engine": "google_jobs", 
                 "q": query,
                 "api_key": SERPAPI_KEY
             }
@@ -483,117 +442,80 @@ def search_company_careers_general():
             jobs = results.get("jobs_results", [])
             
             for job in jobs:
-                job['source'] = 'target_company_general'
+                job['source'] = 'target_company_jobs'
                 job['source_url'] = job.get('apply_options', [{}])[0].get('link', job.get('share_link', ''))
             
-            all_jobs.extend(jobs)
+            all_jobs.extend(jobs[:10])  # Limit to 10 per query
             
         except Exception as e:
-            print(f"Error searching company query '{query}': {e}")
+            print(f"Error searching: {e}")
             continue
     
-    return all_jobs[:20]  # Limit results
+    return all_jobs[:15]  # Total limit of 15
 
 def search_all_sources():
-    """Search jobs from all available sources"""
+    """Search jobs from all available sources - OPTIMIZED VERSION"""
     print("🔎 Searching for senior product leadership roles...")
     
     all_jobs = []
     sources_searched = []
     
-    # Traditional job search queries optimized for startups/tech
-    startup_tech_queries = [
-        "senior product manager startup OR \"series A\" OR \"series B\" OR \"well funded\"",
-        "principal product manager fintech OR healthtech OR \"AI\" OR \"machine learning\"",
-        "head of product \"early stage\" OR \"growth stage\" OR \"scale up\"",
-        "founding product manager startup OR \"founding team\"",
-        "director of product \"venture backed\" OR \"funded startup\"",
-        "chief of staff CEO OR founder startup",
-        "head of operations \"high growth\" OR \"fast growing\" startup"
+    # STREAMLINED: Fewer, more targeted queries
+    core_queries = [
+        "senior product manager remote OR seattle OR bellevue",
+        "principal product manager startup OR \"series A\" OR fintech OR healthtech", 
+        "head of product \"early stage\" OR \"growth stage\" remote",
+        "founding product manager OR director product startup"
     ]
     
-    # Search Google Jobs with startup-focused queries, prioritizing preferred locations
-    preferred_locations = ["remote", "seattle", "bellevue", "kirkland", "redmond"]
-    secondary_locations = ["austin", "denver", "boston", "portland"]
+    # PRIMARY SEARCH: Focus on high-value sources only
+    print("🎯 Phase 1: Core job board search...")
+    for query in core_queries:
+        try:
+            jobs = search_jobs_serpapi(query, "")  # No location filter, it's in the query
+            all_jobs.extend(jobs)
+            print(f"  ✓ Found {len(jobs)} jobs: {query[:50]}...")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
     
-    # Search preferred locations first (more thorough)
-    for query in startup_tech_queries:
-        for location in preferred_locations:
-            try:
-                jobs = search_jobs_serpapi(query, location)
-                all_jobs.extend(jobs)
-                print(f"Found {len(jobs)} jobs from Google Jobs: {query} in {location}")
-            except Exception as e:
-                print(f"Error searching Google Jobs: {e}")
+    sources_searched.append(f"Google Jobs optimized ({len(all_jobs)} jobs)")
     
-    # Search secondary locations with fewer queries
-    for query in startup_tech_queries[:4]:  # Limit queries for secondary locations
-        for location in secondary_locations:
-            try:
-                jobs = search_jobs_serpapi(query, location)
-                all_jobs.extend(jobs)
-                print(f"Found {len(jobs)} jobs from Google Jobs: {query} in {location}")
-            except Exception as e:
-                print(f"Error searching Google Jobs: {e}")
+    # TARGET COMPANIES: Only high-priority ones
+    print("🏢 Phase 2: Target company search...")
+    try:
+        company_jobs = search_company_careers_general()  # This is more efficient
+        all_jobs.extend(company_jobs)
+        sources_searched.append(f"Target companies ({len(company_jobs)} jobs)")
+        print(f"  ✓ Found {len(company_jobs)} jobs from target companies")
+    except Exception as e:
+        print(f"  ❌ Target company search error: {e}")
     
-    sources_searched.append("Google Jobs (startup-focused)")
+    # STARTUP SOURCES: Quick sampling only
+    print("🚀 Phase 3: Startup platforms...")
     
-    # Search Y Combinator jobs
+    # Y Combinator - quick search
     try:
         yc_jobs = search_jobs_ycombinator()
-        all_jobs.extend(yc_jobs)
-        sources_searched.append(f"Y Combinator ({len(yc_jobs)} jobs)")
-        print(f"Found {len(yc_jobs)} jobs from Y Combinator")
+        if yc_jobs:
+            all_jobs.extend(yc_jobs[:5])  # Limit to top 5
+            sources_searched.append(f"Y Combinator ({len(yc_jobs[:5])} jobs)")
+            print(f"  ✓ Found {len(yc_jobs[:5])} YC jobs")
     except Exception as e:
-        print(f"Error searching Y Combinator: {e}")
+        print(f"  ❌ YC search error: {e}")
     
-    # Search AngelList/Wellfound
+    # AngelList - quick search
     try:
         angel_jobs = search_jobs_angellist()
-        all_jobs.extend(angel_jobs)
-        sources_searched.append(f"AngelList/Wellfound ({len(angel_jobs)} jobs)")
-        print(f"Found {len(angel_jobs)} jobs from AngelList/Wellfound")
+        if angel_jobs:
+            all_jobs.extend(angel_jobs[:8])  # Limit to top 8
+            sources_searched.append(f"AngelList ({len(angel_jobs[:8])} jobs)")
+            print(f"  ✓ Found {len(angel_jobs[:8])} AngelList jobs")
     except Exception as e:
-        print(f"Error searching AngelList: {e}")
+        print(f"  ❌ AngelList search error: {e}")
     
-    # Search Built In
-    try:
-        builtin_jobs = search_jobs_builtin()
-        all_jobs.extend(builtin_jobs)
-        sources_searched.append(f"Built In ({len(builtin_jobs)} jobs)")
-        print(f"Found {len(builtin_jobs)} jobs from Built In")
-    except Exception as e:
-        print(f"Error searching Built In: {e}")
-    
-    # Search general startup jobs
-    try:
-        startup_jobs = search_startup_jobs_general()
-        all_jobs.extend(startup_jobs)
-        sources_searched.append(f"Startup-focused search ({len(startup_jobs)} jobs)")
-        print(f"Found {len(startup_jobs)} jobs from startup-focused search")
-    except Exception as e:
-        print(f"Error searching startup jobs: {e}")
-    
-    # Search target companies directly
-    try:
-        target_company_jobs = search_target_companies()
-        all_jobs.extend(target_company_jobs)
-        sources_searched.append(f"Target companies ({len(target_company_jobs)} jobs)")
-        print(f"Found {len(target_company_jobs)} jobs from target companies")
-    except Exception as e:
-        print(f"Error searching target companies: {e}")
-    
-    # Search target companies with general queries
-    try:
-        company_general_jobs = search_company_careers_general()
-        all_jobs.extend(company_general_jobs)
-        sources_searched.append(f"Target company queries ({len(company_general_jobs)} jobs)")
-        print(f"Found {len(company_general_jobs)} jobs from target company queries")
-    except Exception as e:
-        print(f"Error searching target company queries: {e}")
-    
-    print(f"\n📊 Sources searched: {', '.join(sources_searched)}")
-    print(f"Found {len(all_jobs)} total opportunities")
+    print(f"\n📊 SEARCH COMPLETE")
+    print(f"📈 Sources: {', '.join(sources_searched)}")
+    print(f"🎯 Total opportunities found: {len(all_jobs)}")
     
     return all_jobs
 

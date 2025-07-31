@@ -85,6 +85,9 @@ class GoogleSheetsResponse(BaseModel):
     message: str
     count: Optional[int] = None
 
+class CompanySearchRequest(BaseModel):
+    company_name: str
+
 @app.get("/")
 async def root():
     return {"message": "Job Search Tracker API", "status": "online", "cors": "enabled"}
@@ -468,6 +471,96 @@ async def import_jobs_from_sheets(request: GoogleSheetsSync):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Import error: {str(e)}")
+
+@app.post("/api/search-company")
+async def search_company_jobs(request: CompanySearchRequest):
+    """Search for product management jobs at a specific company"""
+    try:
+        # Import here to avoid circular imports
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+        
+        from job_search_agent import search_single_company, user_profile, match_job_to_user, save_job_to_db, create_job_hash, job_exists
+        
+        company_name = request.company_name.strip()
+        if not company_name:
+            raise HTTPException(status_code=400, detail="Company name is required")
+        
+        print(f"🏢 Starting custom company search for: {company_name}")
+        
+        # Search for jobs at the specific company
+        jobs = search_single_company(company_name)
+        
+        if not jobs:
+            return {
+                "success": True,
+                "message": f"No product management roles found at {company_name}",
+                "jobs_found": 0,
+                "new_jobs_saved": 0
+            }
+        
+        # Process and save new jobs
+        new_jobs_count = 0
+        processed_jobs = []
+        
+        for job in jobs:
+            # Create job hash for deduplication
+            job_hash = create_job_hash(job)
+            
+            # Skip if job already exists
+            if job_exists(job_hash):
+                print(f"  ⏭️ Skipping existing job: {job.get('title', 'Unknown')}")
+                continue
+            
+            # Get AI match score
+            try:
+                score_output = match_job_to_user(job, user_profile)
+                # Extract numeric score
+                import re
+                score_numbers = re.findall(r'\b(\d+)\b', score_output)
+                numeric_score = int(score_numbers[0]) if score_numbers else 75
+            except Exception as e:
+                print(f"  ⚠️ Error getting AI score: {e}")
+                score_output = f"Score: 75 - Company search result for {company_name}"
+                numeric_score = 75
+            
+            # Get job URL
+            job_url = (job.get('job_url') or 
+                      job.get('link') or 
+                      job.get('source_url') or '')
+            
+            # Prepare job data for database
+            job_data = {
+                'job_hash': job_hash,
+                'title': job.get('title', ''),
+                'company_name': job.get('company_name', company_name),
+                'location': job.get('location', 'See Company Site'),
+                'description': job.get('description', ''),
+                'job_url': job_url,
+                'match_score': numeric_score,
+                'ai_analysis': score_output,
+                'contacts': []  # No LinkedIn search for custom company search
+            }
+            
+            # Save to database
+            save_job_to_db(job_data)
+            new_jobs_count += 1
+            processed_jobs.append(job_data)
+            
+            print(f"  ✅ Saved: {job.get('title', 'Unknown')} - Score: {numeric_score}")
+        
+        return {
+            "success": True,
+            "message": f"Found {len(jobs)} opportunities at {company_name}, saved {new_jobs_count} new jobs",
+            "jobs_found": len(jobs),
+            "new_jobs_saved": new_jobs_count,
+            "company": company_name
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in company search: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Company search error: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -453,6 +453,100 @@ def search_company_careers_general():
     
     return all_jobs[:15]  # Total limit of 15
 
+def search_single_company(company_name):
+    """Search for product management roles at a specific company"""
+    if not SERPAPI_KEY:
+        return []
+    
+    all_jobs = []
+    
+    print(f"🔍 Searching for product roles at {company_name}...")
+    
+    # Multiple search strategies for the company
+    search_strategies = [
+        # Strategy 1: Direct company site search
+        f'"product manager" OR "senior product manager" OR "principal product manager" site:{company_name.lower()}.com',
+        
+        # Strategy 2: Google Jobs search
+        f'"product manager" OR "head of product" OR "director product" "{company_name}"',
+        
+        # Strategy 3: Career page search
+        f'site:careers.{company_name.lower()}.com OR site:jobs.{company_name.lower()}.com product manager',
+        
+        # Strategy 4: General web search for job postings
+        f'"{company_name}" "product manager" (job OR career OR hiring OR position)'
+    ]
+    
+    for i, query in enumerate(search_strategies, 1):
+        try:
+            print(f"  📝 Strategy {i}: {query[:60]}...")
+            
+            # Use Google Jobs for strategy 2, regular Google for others
+            engine = "google_jobs" if i == 2 else "google"
+            
+            params = {
+                "engine": engine,
+                "q": query,
+                "api_key": SERPAPI_KEY,
+                "num": 8 if i <= 2 else 5  # More results for primary strategies
+            }
+            
+            search = GoogleSearch(params)
+            results = search.get_dict()
+            
+            if engine == "google_jobs":
+                # Handle Google Jobs results
+                jobs = results.get("jobs_results", [])
+                for job in jobs:
+                    # Only include jobs that actually mention the company
+                    if company_name.lower() in job.get('company_name', '').lower():
+                        job['source'] = f'company_search_{engine}'
+                        job['source_url'] = job.get('apply_options', [{}])[0].get('link', job.get('share_link', ''))
+                        all_jobs.append(job)
+                        
+                print(f"    ✓ Found {len([j for j in jobs if company_name.lower() in j.get('company_name', '').lower()])} relevant jobs")
+            else:
+                # Handle regular Google results  
+                organic_results = results.get("organic_results", [])
+                job_count = 0
+                
+                for result in organic_results[:6]:  # Check first 6 results
+                    link = result.get('link', '')
+                    title = result.get('title', '')
+                    
+                    # Look for job-related keywords in the link or title
+                    if any(keyword in link.lower() for keyword in ['job', 'career', 'hiring', 'position']) or \
+                       any(keyword in title.lower() for keyword in ['product manager', 'product lead', 'pm ']):
+                        
+                        all_jobs.append({
+                            'title': title,
+                            'company_name': company_name,
+                            'location': 'See Company Site',
+                            'description': result.get('snippet', ''),
+                            'job_url': link,
+                            'source': f'company_search_web_{i}',
+                            'source_url': link
+                        })
+                        job_count += 1
+                
+                print(f"    ✓ Found {job_count} potential job postings")
+            
+        except Exception as e:
+            print(f"    ❌ Strategy {i} failed: {e}")
+            continue
+    
+    # Remove duplicates based on URL
+    seen_urls = set()
+    unique_jobs = []
+    for job in all_jobs:
+        url = job.get('job_url', '') or job.get('source_url', '')
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            unique_jobs.append(job)
+    
+    print(f"✅ Found {len(unique_jobs)} unique opportunities at {company_name}")
+    return unique_jobs[:12]  # Limit to 12 results
+
 def search_all_sources():
     """Search jobs from all available sources - OPTIMIZED VERSION"""
     print("🔎 Searching for senior product leadership roles...")

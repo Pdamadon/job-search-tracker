@@ -4,6 +4,7 @@ import JobCard from './components/JobCard';
 import SearchControls from './components/SearchControls';
 import Dashboard from './components/Dashboard';
 import GoogleSheetsSync from './components/GoogleSheetsSync';
+import CompanySearch from './components/CompanySearch';
 import './App.css';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -276,6 +277,12 @@ function App() {
           onFilterChange={handleFilterChange}
           searchRunning={searchRunning}
           stats={stats}
+        />
+
+        {/* Company Search */}
+        <CompanySearch 
+          apiBase={API_BASE}
+          onSearchComplete={handleSyncComplete}
         />
 
         {/* Google Sheets Sync */}

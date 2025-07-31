@@ -463,15 +463,36 @@ def search_single_company(company_name):
     print(f"🔍 Searching for product roles at {company_name}...")
     
     # Multiple search strategies for the company
+    company_lower = company_name.lower()
+    
+    # Add common career site patterns for major companies
+    career_sites = [
+        f'site:careers.{company_lower}.com',
+        f'site:jobs.{company_lower}.com'
+    ]
+    
+    # Special cases for major companies
+    if company_lower in ['microsoft', 'google', 'amazon', 'meta', 'apple']:
+        if company_lower == 'microsoft':
+            career_sites.append('site:careers.microsoft.com')
+        elif company_lower == 'google':
+            career_sites.extend(['site:careers.google.com', 'site:jobs.google.com'])
+        elif company_lower == 'amazon':
+            career_sites.append('site:amazon.jobs')
+        elif company_lower == 'meta':
+            career_sites.extend(['site:careers.meta.com', 'site:metacareers.com'])
+        elif company_lower == 'apple':
+            career_sites.append('site:jobs.apple.com')
+    
     search_strategies = [
         # Strategy 1: Direct company site search
-        f'"product manager" OR "senior product manager" OR "principal product manager" site:{company_name.lower()}.com',
+        f'"product manager" OR "senior product manager" OR "principal product manager" site:{company_lower}.com',
         
         # Strategy 2: Google Jobs search
         f'"product manager" OR "head of product" OR "director product" "{company_name}"',
         
         # Strategy 3: Career page search
-        f'site:careers.{company_name.lower()}.com OR site:jobs.{company_name.lower()}.com product manager',
+        f'({" OR ".join(career_sites)}) ("product manager" OR "PM " OR "product lead")',
         
         # Strategy 4: General web search for job postings
         f'"{company_name}" "product manager" (job OR career OR hiring OR position)'
@@ -498,13 +519,26 @@ def search_single_company(company_name):
                 # Handle Google Jobs results
                 jobs = results.get("jobs_results", [])
                 for job in jobs:
-                    # Only include jobs that actually mention the company
-                    if company_name.lower() in job.get('company_name', '').lower():
+                    # More flexible company name matching
+                    job_company = job.get('company_name', '').lower()
+                    company_lower = company_name.lower()
+                    
+                    # Check if company name appears in job company OR vice versa (handles variations like "Microsoft Corporation")
+                    if company_lower in job_company or job_company in company_lower or \
+                       any(word in job_company for word in company_lower.split() if len(word) > 3):
                         job['source'] = f'company_search_{engine}'
                         job['source_url'] = job.get('apply_options', [{}])[0].get('link', job.get('share_link', ''))
                         all_jobs.append(job)
                         
-                print(f"    ✓ Found {len([j for j in jobs if company_name.lower() in j.get('company_name', '').lower()])} relevant jobs")
+                # Count jobs that match our flexible criteria
+                matching_jobs = []
+                for j in jobs:
+                    job_company = j.get('company_name', '').lower()
+                    company_lower = company_name.lower()
+                    if company_lower in job_company or job_company in company_lower or \
+                       any(word in job_company for word in company_lower.split() if len(word) > 3):
+                        matching_jobs.append(j)
+                print(f"    ✓ Found {len(matching_jobs)} relevant jobs")
             else:
                 # Handle regular Google results  
                 organic_results = results.get("organic_results", [])

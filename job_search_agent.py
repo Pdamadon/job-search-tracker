@@ -500,7 +500,7 @@ def search_single_company(company_name):
     
     for i, query in enumerate(search_strategies, 1):
         try:
-            print(f"  📝 Strategy {i}: {query[:60]}...")
+            print(f"  📝 Strategy {i}: {query}")
             
             # Use Google Jobs for strategy 2, regular Google for others
             engine = "google_jobs" if i == 2 else "google"
@@ -512,23 +512,40 @@ def search_single_company(company_name):
                 "num": 8 if i <= 2 else 5  # More results for primary strategies
             }
             
+            print(f"  🔧 API Request - Engine: {engine}, Query: {query}")
+            print(f"  🔧 Full params: {params}")
+            
             search = GoogleSearch(params)
             results = search.get_dict()
+            
+            print(f"  🔧 Raw API Response keys: {list(results.keys())}")
+            print(f"  🔧 API Response sample: {str(results)[:200]}...")
             
             if engine == "google_jobs":
                 # Handle Google Jobs results
                 jobs = results.get("jobs_results", [])
-                for job in jobs:
-                    # More flexible company name matching
+                print(f"  🔧 Google Jobs found: {len(jobs)} total jobs")
+                
+                for idx, job in enumerate(jobs):
                     job_company = job.get('company_name', '').lower()
                     company_lower = company_name.lower()
                     
+                    print(f"    Job {idx+1}: '{job.get('title', 'No title')}' at '{job.get('company_name', 'No company')}'")
+                    
                     # Check if company name appears in job company OR vice versa (handles variations like "Microsoft Corporation")
-                    if company_lower in job_company or job_company in company_lower or \
-                       any(word in job_company for word in company_lower.split() if len(word) > 3):
+                    match_1 = company_lower in job_company
+                    match_2 = job_company in company_lower
+                    match_3 = any(word in job_company for word in company_lower.split() if len(word) > 3)
+                    
+                    print(f"    🔍 Matching: '{company_lower}' vs '{job_company}' - match1: {match_1}, match2: {match_2}, match3: {match_3}")
+                    
+                    if match_1 or match_2 or match_3:
                         job['source'] = f'company_search_{engine}'
                         job['source_url'] = job.get('apply_options', [{}])[0].get('link', job.get('share_link', ''))
                         all_jobs.append(job)
+                        print(f"    ✅ INCLUDED this job")
+                    else:
+                        print(f"    ❌ FILTERED OUT this job")
                         
                 # Count jobs that match our flexible criteria
                 matching_jobs = []
